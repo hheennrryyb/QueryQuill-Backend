@@ -33,14 +33,14 @@ This Django project implements a vector search system that allows users to uploa
 
 4. Initialize the Django project:
    ```
-   python manage.py makemigrations
-   python manage.py migrate
-   python manage.py createsuperuser
+   python3 manage.py makemigrations
+   python3 manage.py migrate
+   python3 manage.py createsuperuser
    ```
 
 5. Run the development server:
    ```
-   python manage.py runserver
+   python3 manage.py runserver
    ```
 
 ## Usage

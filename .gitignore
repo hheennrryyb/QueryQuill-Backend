@@ -1,3 +1,5 @@
 .DS_Store
 media/
 db.sqlite3
+
+vector_search/migrations
