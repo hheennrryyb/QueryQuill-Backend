@@ -4,6 +4,7 @@ import uuid
 
 # Create your models here.
 class Document(models.Model):
+    document_id = models.CharField(max_length=8, unique=True, default=uuid.uuid4)
     user = models.ForeignKey(User, on_delete=models.CASCADE)
     file = models.FileField(upload_to='documents/')
     uploaded_at = models.DateTimeField(auto_now_add=True)

@@ -18,6 +18,9 @@ import requests
 from urllib.parse import urlparse
 from django.core.files.base import ContentFile
 import urllib.parse
+from django.core.files.storage import default_storage
+from bs4 import BeautifulSoup
+import PyPDF2
 
 class UploadDocumentView(APIView):
     permission_classes = [IsAuthenticated]
@@ -252,10 +255,12 @@ class ProjectDetailView(APIView):
             'updated_at': project.updated_at.isoformat(),
             'files': [
                 {
-                    'id': doc.id,
+                    'id': doc.document_id,
                     'name': doc.file.name,
                     'uploaded_at': doc.uploaded_at.isoformat(),
                     'processed': doc.processed,
+                    'file_path': doc.file.path,
+                    'file_size': doc.file.size,
                 }
                 for doc in documents
             ]
@@ -316,3 +321,87 @@ class ScrapeUrlView(APIView):
         
         except requests.RequestException as e:
             return HttpResponse(f"Error fetching URL: {str(e)}", status=500)
+
+class DocumentPreviewView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request):
+        document_id = request.data.get('document_id')
+        project_id = request.data.get('project_id')
+
+        if not document_id or not project_id:
+            return Response({"error": "Both document_id and project_id are required"}, status=status.HTTP_400_BAD_REQUEST)
+
+        try:
+            vector_db = VectorDatabase.objects.get(project_id=project_id, user=request.user)
+            document = Document.objects.get(document_id=document_id, vector_database=vector_db)
+        except (VectorDatabase.DoesNotExist, Document.DoesNotExist):
+            return Response({"error": "Document or project not found"}, status=status.HTTP_404_NOT_FOUND)
+
+        file_path = document.file.path
+        file_name = os.path.basename(file_path)
+        file_extension = os.path.splitext(file_name)[1].lower()
+
+        preview_content = ""
+
+        if file_extension == '.pdf':
+            preview_content = self.preview_pdf(file_path)
+        elif file_extension in ['.html', '.htm']:
+            preview_content = self.preview_html(file_path)
+        else:
+            return Response({"error": "Unsupported file type"}, status=status.HTTP_400_BAD_REQUEST)
+
+        return Response({
+            "file_name": file_name,
+            "preview_content": preview_content
+        }, status=status.HTTP_200_OK)
+
+    def preview_pdf(self, file_path, max_pages=10):
+        with open(file_path, 'rb') as file:
+            pdf_reader = PyPDF2.PdfReader(file)
+            num_pages = len(pdf_reader.pages)
+            preview_content = ""
+
+            for page in range(min(num_pages, max_pages)):
+                preview_content += pdf_reader.pages[page].extract_text() + "\n\n"
+
+        return preview_content.strip()
+
+    def preview_html(self, file_path, max_chars=50000):
+        with open(file_path, 'r', encoding='utf-8') as file:
+            soup = BeautifulSoup(file, 'html.parser')
+            text = soup.get_text(separator=' ')  # Use space as separator
+            text = ' '.join(text.split())  # Remove extra whitespace
+            preview_content = text[:max_chars] + "..." if len(text) > max_chars else text
+
+        return preview_content.strip()
+
+class DeleteDocumentView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request):
+        document_id = request.data.get('document_id')
+        project_id = request.data.get('project_id')
+
+        if not document_id or not project_id:
+            return Response({"error": "Both document_id and project_id are required"}, status=status.HTTP_400_BAD_REQUEST)
+
+        try:
+            vector_db = VectorDatabase.objects.get(project_id=project_id, user=request.user)
+            document = Document.objects.get(document_id=document_id, vector_database=vector_db)
+        except VectorDatabase.DoesNotExist:
+            return Response({"error": "Project not found"}, status=status.HTTP_404_NOT_FOUND)
+        except Document.DoesNotExist:
+            return Response({"error": "Document not found"}, status=status.HTTP_404_NOT_FOUND)
+
+        # Delete the file from storage
+        if document.file:
+            if os.path.isfile(document.file.path):
+                os.remove(document.file.path)
+
+        # Delete the document from the database
+        document.delete()
+
+        return Response({"message": "Document deleted successfully"}, status=status.HTTP_200_OK)
+
+
