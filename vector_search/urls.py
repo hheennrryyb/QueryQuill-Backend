@@ -4,6 +4,7 @@ from . import views
 
 urlpatterns = [
     path('upload/', views.UploadDocumentView.as_view(), name='upload_document'),
+    path('upload_text_document/', views.SaveTextDocumentView.as_view(), name='save_text_document'),
     path('create_project/', views.CreateProjectView.as_view(), name='create_project'),
     path('process/', views.ProcessDocumentsView.as_view(), name='process_documents'),
     path('query/', views.QueryDocumentsView.as_view(), name='query_documents'),

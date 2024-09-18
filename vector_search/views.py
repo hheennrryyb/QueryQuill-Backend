@@ -21,6 +21,10 @@ import urllib.parse
 from django.core.files.storage import default_storage
 from bs4 import BeautifulSoup
 import PyPDF2
+import uuid
+
+# import logging
+
 
 class UploadDocumentView(APIView):
     permission_classes = [IsAuthenticated]
@@ -125,7 +129,8 @@ class QueryDocumentsView(APIView):
     def post(self, request):
         query = request.data.get('query')
         project_id = request.data.get('project_id')
-        
+        logging.info(f"Query: {query}")
+        logging.info(f"Project ID: {project_id}")
         if not query:
             return JsonResponse({'error': 'No query provided'}, status=400)
         
@@ -142,18 +147,31 @@ class QueryDocumentsView(APIView):
         try:
             index_path = os.path.join(settings.MEDIA_ROOT, vector_db.index_file.name)
             chunks_path = os.path.join(settings.MEDIA_ROOT, vector_db.chunks_file.name)
-            
+            logging.info(f"Index path: {index_path}")
+            logging.info(f"Chunks path: {chunks_path}")
             if not os.path.exists(index_path) or not os.path.exists(chunks_path):
                 return JsonResponse({
                     'error': 'Vector database files not found. Please reprocess your documents.'
                 }, status=404)
             
             index = faiss.read_index(index_path)
+            logging.info(f"Index: {index}")
             with open(chunks_path, 'rb') as f:
                 chunks = pickle.load(f)
-            
+
             results = query_vector_database(query, index, chunks)
-            return JsonResponse({'results': [r.page_content for r in results]})
+            logging.info(f"Results: {results}")
+            # Format results to match the expected output
+            formatted_results = [
+                {
+                    'content': r['chunk'].page_content,
+                    'distance': float(r['distance'])  # Convert numpy.float32 to Python float
+                }
+                for r in results
+            ]
+            logging.info(f"Formatted results: {formatted_results}")
+            
+            return JsonResponse({'results': formatted_results})
         except Exception as e:
             return JsonResponse({
                 'error': f'An error occurred while querying the vector database: {str(e)}'
@@ -348,6 +366,8 @@ class DocumentPreviewView(APIView):
             preview_content = self.preview_pdf(file_path)
         elif file_extension in ['.html', '.htm']:
             preview_content = self.preview_html(file_path)
+        elif file_extension == '.txt':
+            preview_content = self.preview_txt(file_path)
         else:
             return Response({"error": "Unsupported file type"}, status=status.HTTP_400_BAD_REQUEST)
 
@@ -373,6 +393,13 @@ class DocumentPreviewView(APIView):
             text = soup.get_text(separator=' ')  # Use space as separator
             text = ' '.join(text.split())  # Remove extra whitespace
             preview_content = text[:max_chars] + "..." if len(text) > max_chars else text
+
+        return preview_content.strip()
+
+    def preview_txt(self, file_path, max_chars=50000):
+        with open(file_path, 'r', encoding='utf-8') as file:
+            text = file.read(max_chars)
+            preview_content = text + "..." if len(text) == max_chars else text
 
         return preview_content.strip()
 
@@ -403,5 +430,61 @@ class DeleteDocumentView(APIView):
         document.delete()
 
         return Response({"message": "Document deleted successfully"}, status=status.HTTP_200_OK)
+
+class SaveTextDocumentView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request):
+        project_id = request.data.get('project_id')
+        text_content = request.data.get('text_content')
+        title = request.data.get('title')
+
+        if not all([project_id, text_content]):
+            return Response({
+                'error': 'Project ID and text content are required'
+            }, status=status.HTTP_400_BAD_REQUEST)
+        
+        try:
+            vector_db = VectorDatabase.objects.get(project_id=project_id, user=request.user)
+        except VectorDatabase.DoesNotExist:
+            return Response({
+                'error': 'Vector database not found'
+            }, status=status.HTTP_404_NOT_FOUND)
+        
+        # Generate file name based on title or random UUID
+        if title:
+            file_name = self.sanitize_filename(title)
+        else:
+            file_name = f"document_{uuid.uuid4().hex[:8]}"
+
+        # Ensure the file name has a .txt extension
+        if not file_name.lower().endswith('.txt'):
+            file_name += '.txt'
+
+        # Create a unique file name to avoid conflicts
+        unique_file_name = f"{uuid.uuid4().hex}_{file_name}"
+
+        # Create a ContentFile from the text content
+        content_file = ContentFile(text_content.encode('utf-8'), name=unique_file_name)
+
+        # Create the Document object
+        document = Document.objects.create(
+            user=request.user,
+            file=content_file,
+            vector_database=vector_db
+        )
+
+        return Response({
+            'message': 'Text document saved successfully',
+            'document_id': document.document_id,
+            'file_name': unique_file_name
+        }, status=status.HTTP_201_CREATED)
+
+    def sanitize_filename(self, filename):
+        # Remove or replace characters that are unsafe for filenames
+        unsafe_chars = ['/', '\\', ':', '*', '?', '"', '<', '>', '|']
+        for char in unsafe_chars:
+            filename = filename.replace(char, '_')
+        return filename.strip()
 
 
