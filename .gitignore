@@ -3,3 +3,10 @@ media/
 db.sqlite3
 
 vector_search/migrations
+
+*.pyc
+*~
+__pycache__
+db.sqlite3
+/static
+.DS_Store

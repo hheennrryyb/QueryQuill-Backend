@@ -28,7 +28,7 @@ This Django project implements a vector search system that allows users to uploa
 
 3. Install the required packages:
    ```
-   pip install django langchain sentence-transformers faiss-cpu PyPDF2 beautifulsoup4
+   $ pip install -r requirements.txt
    ```
 
 4. Initialize the Django project:
@@ -42,6 +42,9 @@ This Django project implements a vector search system that allows users to uploa
    ```
    python3 manage.py runserver
    ```
+
+6. Create an application source bundle:
+   $ zip -r myproject.zip . -x "*.git*" "*.pyc" "*__pycache__*" "*.DS_Store"
 
 ## Usage
 

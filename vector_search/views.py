@@ -22,8 +22,9 @@ from django.core.files.storage import default_storage
 from bs4 import BeautifulSoup
 import PyPDF2
 import uuid
+from django.contrib.auth.models import User
 
-# import logging
+import logging
 
 
 class UploadDocumentView(APIView):
@@ -192,60 +193,6 @@ class ProjectExplorerView(APIView):
             for project in user_projects
         ]
         return JsonResponse({'projects': project_data}, status=200)
-
-
-class UserLoginView(APIView):
-    def post(self, request):
-        username = request.data.get('username')
-        password = request.data.get('password')
-        user = authenticate(username=username, password=password)
-        if user is not None:
-            refresh = RefreshToken.for_user(user)
-            return Response({
-                'refresh': str(refresh),
-                'access': str(refresh.access_token),
-                'user_id': user.id,
-                'username': user.username,
-                'email': user.email
-            }, status=status.HTTP_200_OK)
-        else:
-            return Response({'error': 'Invalid credentials'}, status=status.HTTP_401_UNAUTHORIZED)
-
-class UserLogoutView(APIView):
-    permission_classes = [IsAuthenticated]
-
-    def post(self, request):
-        try:
-            refresh_token = request.data["refresh"]
-            token = RefreshToken(refresh_token)
-            token.blacklist()
-
-            # Optional: Blacklist all tokens for the user
-            # user = request.user
-            # tokens = OutstandingToken.objects.filter(user_id=user.id)
-            # for token in tokens:
-            #     BlacklistedToken.objects.get_or_create(token=token)
-
-            return Response({"message": "Logout successful"}, status=status.HTTP_205_RESET_CONTENT)
-        except Exception as e:
-            return Response({"error": str(e)}, status=status.HTTP_400_BAD_REQUEST)
-
-class UserProfileView(APIView):
-    permission_classes = [IsAuthenticated]
-
-    def get(self, request):
-        user = request.user
-        profile_data = {
-            'id': user.id,
-            'username': user.username,
-            'email': user.email,
-            'first_name': user.first_name,
-            'last_name': user.last_name,
-            'date_joined': user.date_joined.isoformat(),
-            'last_login': user.last_login.isoformat() if user.last_login else None,
-        }
-        return Response(profile_data, status=status.HTTP_200_OK)
-
 
 class ProjectDetailView(APIView):
     permission_classes = [IsAuthenticated]
@@ -487,4 +434,88 @@ class SaveTextDocumentView(APIView):
             filename = filename.replace(char, '_')
         return filename.strip()
 
+
+# User Management Views
+
+class UserLoginView(APIView):
+    def post(self, request):
+        username = request.data.get('username')
+        password = request.data.get('password')
+        user = authenticate(username=username, password=password)
+        if user is not None:
+            refresh = RefreshToken.for_user(user)
+            return Response({
+                'refresh': str(refresh),
+                'access': str(refresh.access_token),
+                'user_id': user.id,
+                'username': user.username,
+                'email': user.email
+            }, status=status.HTTP_200_OK)
+        else:
+            return Response({'error': 'Invalid credentials'}, status=status.HTTP_401_UNAUTHORIZED)
+
+class UserLogoutView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request):
+        try:
+            refresh_token = request.data["refresh"]
+            token = RefreshToken(refresh_token)
+            token.blacklist()
+
+            # Optional: Blacklist all tokens for the user
+            # user = request.user
+            # tokens = OutstandingToken.objects.filter(user_id=user.id)
+            # for token in tokens:
+            #     BlacklistedToken.objects.get_or_create(token=token)
+
+            return Response({"message": "Logout successful"}, status=status.HTTP_205_RESET_CONTENT)
+        except Exception as e:
+            return Response({"error": str(e)}, status=status.HTTP_400_BAD_REQUEST)
+
+class UserProfileView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        user = request.user
+        profile_data = {
+            'id': user.id,
+            'username': user.username,
+            'email': user.email,
+            'first_name': user.first_name,
+            'last_name': user.last_name,
+            'date_joined': user.date_joined.isoformat(),
+            'last_login': user.last_login.isoformat() if user.last_login else None,
+        }
+        return Response(profile_data, status=status.HTTP_200_OK)
+
+class UserSignUpView(APIView):
+    def post(self, request):
+        username = request.data.get('username')
+        email = request.data.get('email')
+        password = request.data.get('password')
+
+        if not username or not email or not password:
+            return Response({
+                'error': 'Username, email, and password are required'
+            }, status=status.HTTP_400_BAD_REQUEST)
+
+        if User.objects.filter(username=username).exists():
+            return Response({
+                'error': 'Username already exists'
+            }, status=status.HTTP_400_BAD_REQUEST)
+
+        # if User.objects.filter(email=email).exists():
+        #     return Response({
+        #         'error': 'Email already exists'
+        #     }, status=status.HTTP_400_BAD_REQUEST)
+
+        user = User.objects.create_user(username=username, email=email, password=password)
+
+        return Response({
+            'message': 'User created successfully',
+            'user_id': user.id,
+            'username': user.username,
+            'email': user.email
+        }, status=status.HTTP_201_CREATED)
 
