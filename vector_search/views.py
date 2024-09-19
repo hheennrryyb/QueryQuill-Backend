@@ -24,9 +24,6 @@ import PyPDF2
 import uuid
 from django.contrib.auth.models import User
 
-import logging
-
-
 class UploadDocumentView(APIView):
     permission_classes = [IsAuthenticated]
 
@@ -106,6 +103,9 @@ class ProcessDocumentsView(APIView):
         try:
             index, chunks = create_vector_database(folder_path)
             
+            if index is None or chunks is None:
+                return JsonResponse({'error': 'Failed to create vector database. Check the logs for more information.'}, status=500)
+            
             index_path = os.path.join(folder_path, 'faiss_index')
             chunks_path = os.path.join(folder_path, 'chunks.pkl')
             
@@ -130,8 +130,6 @@ class QueryDocumentsView(APIView):
     def post(self, request):
         query = request.data.get('query')
         project_id = request.data.get('project_id')
-        logging.info(f"Query: {query}")
-        logging.info(f"Project ID: {project_id}")
         if not query:
             return JsonResponse({'error': 'No query provided'}, status=400)
         
@@ -148,20 +146,16 @@ class QueryDocumentsView(APIView):
         try:
             index_path = os.path.join(settings.MEDIA_ROOT, vector_db.index_file.name)
             chunks_path = os.path.join(settings.MEDIA_ROOT, vector_db.chunks_file.name)
-            logging.info(f"Index path: {index_path}")
-            logging.info(f"Chunks path: {chunks_path}")
             if not os.path.exists(index_path) or not os.path.exists(chunks_path):
                 return JsonResponse({
                     'error': 'Vector database files not found. Please reprocess your documents.'
                 }, status=404)
             
             index = faiss.read_index(index_path)
-            logging.info(f"Index: {index}")
             with open(chunks_path, 'rb') as f:
                 chunks = pickle.load(f)
 
             results = query_vector_database(query, index, chunks)
-            logging.info(f"Results: {results}")
             # Format results to match the expected output
             formatted_results = [
                 {
@@ -170,7 +164,6 @@ class QueryDocumentsView(APIView):
                 }
                 for r in results
             ]
-            logging.info(f"Formatted results: {formatted_results}")
             
             return JsonResponse({'results': formatted_results})
         except Exception as e:

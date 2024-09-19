@@ -70,8 +70,25 @@ def create_vector_database(folder_path):
     logging.info("Creating vector database")
     try:
         documents = load_documents(folder_path)
+        logging.info(f"Loaded {len(documents)} documents")
+        
+        if not documents:
+            logging.warning("No documents were loaded. Check the folder path and file types.")
+            return None, None
+        
         chunks = chunk_texts(documents)
+        logging.info(f"Created {len(chunks)} chunks")
+        
+        if not chunks:
+            logging.warning("No chunks were created. Check the chunking process.")
+            return None, None
+        
         embeddings = get_embeddings(chunks)
+        logging.info(f"Created embeddings with shape {embeddings.shape}")
+        
+        if embeddings.size == 0:
+            logging.warning("No embeddings were created. Check the embedding process.")
+            return None, None
         
         dimension = embeddings.shape[1]
         index = faiss.IndexFlatL2(dimension)
@@ -88,8 +105,8 @@ def create_vector_database(folder_path):
         
         return index, chunks
     except Exception as e:
-        logging.error(f"Error in create_vector_database: {str(e)}")
-        raise
+        logging.error(f"Error in create_vector_database: {str(e)}", exc_info=True)
+        return None, None
 
 def query_vector_database(query, index, chunks, k=5, model_name='all-MiniLM-L6-v2'):
     logging.info(f"Querying vector database with: '{query}'")
