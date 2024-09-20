@@ -17,3 +17,5 @@ db.sqlite3
 !.elasticbeanstalk/*.global.yml
 
 venv/
+
+.env

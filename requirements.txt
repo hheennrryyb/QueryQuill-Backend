@@ -12,6 +12,3 @@ numpy
 scikit-learn
 torch==2.2.2
 psycopg2-binary
-langchain
-langchain-community
-unstructured
