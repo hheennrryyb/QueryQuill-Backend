@@ -15,3 +15,5 @@ psycopg2-binary
 langchain
 langchain-community
 unstructured
+gunicorn
+dj-database-url
