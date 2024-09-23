@@ -83,8 +83,8 @@ if os.getenv('USE_SQLITE', 'False').lower() == 'true':
     }
 
 # Static files (CSS, JavaScript, Images)
-STATIC_URL = '/static/'
-STATIC_ROOT = os.path.join(BASE_DIR, 'static')
+STATIC_URL = 'static/'
+STATIC_ROOT = os.path.join(BASE_DIR, 'staticfiles')
 
 # Media files (uploads)
 MEDIA_URL = '/media/'
