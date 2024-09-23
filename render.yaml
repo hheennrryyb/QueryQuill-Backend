@@ -10,7 +10,7 @@ services:
         value: vector_search_project.settings
       - key: SECRET_KEY
         fromDatabase: 
-          name: vector-search-db
+          name: vector_search_db
           property: SECRET_KEY
       - key: DEBUG
         value: 'False'
@@ -18,9 +18,9 @@ services:
         value: 'queryquill-frontend.onrender.com,localhost,127.0.0.1,0.0.0.0:8000,0.0.0.0'
       - key: DATABASE_URL
         fromDatabase: 
-          name: vector-search-db
+          name: vector_search_db
           property: connectionString
 databases:
-  - name: vector-search-db
+  - name: vector_search_db
     plan: free
-    postgresVersion: 13
+    postgresVersion: 16
