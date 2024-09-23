@@ -3,8 +3,8 @@ services:
     name: vector-search-web
     env: python
     plan: free
-    buildCommand: "pip install -r requirements.txt && python manage.py collectstatic --noinput && python manage.py migrate"
-    startCommand: "ls -la && env && gunicorn vector_search_project.wsgi:application --bind 0.0.0.0:$PORT"
+    buildCommand: "cd vector_search_project && pip install -r requirements.txt && python manage.py collectstatic --noinput && python manage.py migrate"
+    startCommand: "cd vector_search_project && ls -la && env && gunicorn vector_search_project.wsgi:application --bind 0.0.0.0:$PORT"
     envVars:
       - key: DJANGO_SETTINGS_MODULE
         value: vector_search_project.settings
