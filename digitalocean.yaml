@@ -1,0 +1,17 @@
+services:
+  - name: vector-search-web
+    environment_slug: python
+    instance_size_slug: s-1vcpu-1gb
+    image:
+      source: dockerfile
+    envs:
+      - key: DJANGO_SETTINGS_MODULE
+        value: vector_search_project.settings
+      - key: SECRET_KEY
+        value: your_secret_key_here
+      - key: DEBUG
+        value: 'False'
+      - key: ALLOWED_HOSTS
+        value: 'localhost,127.0.0.1,0.0.0.0:8000,0.0.0.0,queryquill-frontend.onrender.com,queryquill-backend.onrender.com'
+      - key: DATABASE_URL
+        value: your_database_url_here

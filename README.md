@@ -45,6 +45,7 @@ This Django project implements a vector search system that allows users to uploa
 6. Update the database configuration in `.env`:
    ```
    DATABASE_URL=postgres://username:password@localhost:5432/vector_search_db
+   USE_SQLITE=False  # Set to 'True' to use SQLite
    ```
 
 7. Set up environment variables:
