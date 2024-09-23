@@ -42,18 +42,9 @@ This Django project implements a vector search system that allows users to uploa
    pip install -r requirements.txt
    ```
 
-6. Update the database configuration in `settings.py`:
-   ```python
-   DATABASES = {
-       'default': {
-           'ENGINE': 'django.db.backends.postgresql',
-           'NAME': 'vector_search_db',
-           'USER': 'postgres',
-           'PASSWORD': 'your_postgres_password',
-           'HOST': 'localhost',
-           'PORT': '5432',
-       }
-   }
+6. Update the database configuration in `.env`:
+   ```
+   DATABASE_URL=postgres://username:password@localhost:5432/vector_search_db
    ```
 
 7. Set up environment variables:

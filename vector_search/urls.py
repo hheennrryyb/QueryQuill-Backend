@@ -3,6 +3,7 @@ from rest_framework_simplejwt.views import TokenObtainPairView, TokenRefreshView
 from . import views
 
 urlpatterns = [
+    path('', views.BaseView.as_view(), name='base'),
     # Document Management
     path('upload/', views.UploadDocumentView.as_view(), name='upload_document'),
     path('upload_text_document/', views.SaveTextDocumentView.as_view(), name='save_text_document'),

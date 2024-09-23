@@ -24,6 +24,16 @@ import PyPDF2
 import uuid
 from django.contrib.auth.models import User
 
+class BaseView(APIView):
+    def get(self, request):
+        data = {
+            'message': 'Welcome to the Vector Search Backend!',
+            'version': '1.0.0',
+            'status': 'running'
+        }
+        return JsonResponse(data)
+
+
 class UploadDocumentView(APIView):
     permission_classes = [IsAuthenticated]
 
