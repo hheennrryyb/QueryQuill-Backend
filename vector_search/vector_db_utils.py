@@ -11,10 +11,10 @@ from langchain_community.document_loaders import PyPDFLoader, UnstructuredHTMLLo
 import numpy as np
 
 # Set up logging
-logging.basicConfig(level=logging.DEBUG, format='%(asctime)s - %(levelname)s - %(message)s')
+# logging.basicConfig(level=logging.DEBUG, format='%(asctime)s - %(levelname)s - %(message)s')
 
 def load_documents(folder_path):
-    logging.info(f"Loading documents from {folder_path}")
+    # logging.info(f"Loading documents from {folder_path}")
     loaders = {
         '.pdf': (PyPDFLoader, {}),
         '.html': (UnstructuredHTMLLoader, {}),
@@ -28,25 +28,25 @@ def load_documents(folder_path):
             loader = DirectoryLoader(folder_path, glob=glob_pattern, loader_cls=loader_class, loader_kwargs=loader_args)
             docs = loader.load()
             documents.extend(docs)
-            logging.info(f"Loaded {len(docs)} {ext} documents")
+            # logging.info(f"Loaded {len(docs)} {ext} documents")
         except Exception as e:
             logging.error(f"Error loading {ext} documents: {str(e)}")
     
-    logging.info(f"Total documents loaded: {len(documents)}")
+    # logging.info(f"Total documents loaded: {len(documents)}")
     return documents
 
 def chunk_texts(documents, chunk_size=1000, chunk_overlap=200):
-    logging.info(f"Chunking {len(documents)} documents")
+    # logging.info(f"Chunking {len(documents)} documents")
     text_splitter = RecursiveCharacterTextSplitter(
         chunk_size=chunk_size,
         chunk_overlap=chunk_overlap
     )
     chunks = text_splitter.split_documents(documents)
-    logging.info(f"Created {len(chunks)} chunks")
+    # logging.info(f"Created {len(chunks)} chunks")
     return chunks
 
 def get_embeddings(chunks, model_name='all-MiniLM-L6-v2', batch_size=32):
-    logging.info(f"Getting embeddings for {len(chunks)} chunks using model {model_name}")
+    # logging.info(f"Getting embeddings for {len(chunks)} chunks using model {model_name}")
     try:
         model = SentenceTransformer(model_name)
         device = 'cuda' if torch.cuda.is_available() else 'cpu'
@@ -62,24 +62,24 @@ def get_embeddings(chunks, model_name='all-MiniLM-L6-v2', batch_size=32):
             embeddings.extend(batch_embeddings)
         
         embeddings_array = np.array(embeddings)
-        logging.info(f"Created embeddings array of shape {embeddings_array.shape}")
+        # logging.info(f"Created embeddings array of shape {embeddings_array.shape}")
         return embeddings_array
     except Exception as e:
         logging.error(f"Error in get_embeddings: {str(e)}")
         raise
 
 def create_vector_database(folder_path):
-    logging.info("Creating vector database")
+    # logging.info("Creating vector database")
     try:
         documents = load_documents(folder_path)
-        logging.info(f"Loaded {len(documents)} documents")
+        # logging.info(f"Loaded {len(documents)} documents")
         
         if not documents:
             logging.warning("No documents were loaded. Check the folder path and file types.")
             return None, None
         
         chunks = chunk_texts(documents)
-        logging.info(f"Created {len(chunks)} chunks")
+        # logging.info(f"Created {len(chunks)} chunks")
         
         if not chunks:
             logging.warning("No chunks were created. Check the chunking process.")
@@ -128,7 +128,7 @@ def query_vector_database(query, index, chunks, k=5, model_name='all-MiniLM-L6-v
             })
         
         sorted_results = sorted(results, key=lambda x: x['distance'])
-        logging.info(f"Found {len(sorted_results)} results")
+        # logging.info(f"Found {len(sorted_results)} results")
         return sorted_results
     except Exception as e:
         logging.error(f"Error in query_vector_database: {str(e)}")
