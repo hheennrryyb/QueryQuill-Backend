@@ -2,10 +2,12 @@ import os
 import torch
 import faiss
 import logging
-from langchain.document_loaders import PyPDFLoader, UnstructuredHTMLLoader, TextLoader
-from langchain.document_loaders import DirectoryLoader
+# from langchain.document_loaders import PyPDFLoader, UnstructuredHTMLLoader, TextLoader
+# from langchain.document_loaders import DirectoryLoader
 from langchain.text_splitter import RecursiveCharacterTextSplitter
 from sentence_transformers import SentenceTransformer
+from langchain_community.document_loaders import PyPDFLoader, UnstructuredHTMLLoader, TextLoader, DirectoryLoader
+
 import numpy as np
 
 # Set up logging
@@ -132,19 +134,19 @@ def query_vector_database(query, index, chunks, k=5, model_name='all-MiniLM-L6-v
         logging.error(f"Error in query_vector_database: {str(e)}")
         raise
 
-# Example usage and debugging
-if __name__ == "__main__":
-    try:
-        folder_path = "path/to/your/documents"
-        index, chunks = create_vector_database(folder_path)
-        print(f"Created index with {index.ntotal} vectors and {len(chunks)} chunks")
+# # Example usage and debugging
+# if __name__ == "__main__":
+#     try:
+#         folder_path = "path/to/your/documents"
+#         index, chunks = create_vector_database(folder_path)
+#         print(f"Created index with {index.ntotal} vectors and {len(chunks)} chunks")
         
-        query = "Your test query here"
-        results = query_vector_database(query, index, chunks)
-        print(f"Query results:")
-        for i, result in enumerate(results):
-            print(f"Result {i+1}:")
-            print(f"  Distance: {result['distance']}")
-            print(f"  Content: {result['chunk'].page_content[:100]}...")  # Print first 100 chars
-    except Exception as e:
-        logging.error(f"Error in main execution: {str(e)}")
+#         query = "Your test query here"
+#         results = query_vector_database(query, index, chunks)
+#         print(f"Query results:")
+#         for i, result in enumerate(results):
+#             print(f"Result {i+1}:")
+#             print(f"  Distance: {result['distance']}")
+#             print(f"  Content: {result['chunk'].page_content[:100]}...")  # Print first 100 chars
+#     except Exception as e:
+#         logging.error(f"Error in main execution: {str(e)}")
