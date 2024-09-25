@@ -1,9 +1,9 @@
 import os
 from celery import Celery
-
-# Add these lines
 import multiprocessing
-multiprocessing.set_start_method('spawn')
+
+# Set the start method to 'forkserver'
+multiprocessing.set_start_method('forkserver', force=True)
 
 os.environ.setdefault('DJANGO_SETTINGS_MODULE', 'vector_search_project.settings')
 

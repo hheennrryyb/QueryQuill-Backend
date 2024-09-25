@@ -2,97 +2,76 @@ import os
 import torch
 import faiss
 import logging
-# from langchain.document_loaders import PyPDFLoader, UnstructuredHTMLLoader, TextLoader
-# from langchain.document_loaders import DirectoryLoader
 from langchain.text_splitter import RecursiveCharacterTextSplitter
 from sentence_transformers import SentenceTransformer
 from langchain_community.document_loaders import PyPDFLoader, UnstructuredHTMLLoader, TextLoader, DirectoryLoader
-
 import numpy as np
 
 # Set up logging
 # logging.basicConfig(level=logging.DEBUG, format='%(asctime)s - %(levelname)s - %(message)s')
 
 def load_documents(folder_path):
-    # logging.info(f"Loading documents from {folder_path}")
     loaders = {
         '.pdf': (PyPDFLoader, {}),
         '.html': (UnstructuredHTMLLoader, {}),
         '.txt': (TextLoader, {'encoding': 'utf8'})
     }
     
-    documents = []
     for ext, (loader_class, loader_args) in loaders.items():
         glob_pattern = f'**/*{ext}'
         try:
             loader = DirectoryLoader(folder_path, glob=glob_pattern, loader_cls=loader_class, loader_kwargs=loader_args)
-            docs = loader.load()
-            documents.extend(docs)
-            # logging.info(f"Loaded {len(docs)} {ext} documents")
+            yield from loader.load()
         except Exception as e:
             logging.error(f"Error loading {ext} documents: {str(e)}")
-    
-    # logging.info(f"Total documents loaded: {len(documents)}")
-    return documents
 
 def chunk_texts(documents, chunk_size=1000, chunk_overlap=200):
-    # logging.info(f"Chunking {len(documents)} documents")
     text_splitter = RecursiveCharacterTextSplitter(
         chunk_size=chunk_size,
         chunk_overlap=chunk_overlap
     )
-    chunks = text_splitter.split_documents(documents)
-    # logging.info(f"Created {len(chunks)} chunks")
-    return chunks
+    for document in documents:
+        yield from text_splitter.split_documents([document])
 
 def get_embeddings(chunks, model_name='all-MiniLM-L6-v2', batch_size=32):
-    # logging.info(f"Getting embeddings for {len(chunks)} chunks using model {model_name}")
     try:
         model = SentenceTransformer(model_name)
         device = 'cuda' if torch.cuda.is_available() else 'cpu'
         logging.info(f"Using device: {device}")
         model = model.to(device)
         
-        embeddings = []
         for i in range(0, len(chunks), batch_size):
             batch = chunks[i:i+batch_size]
             batch_embeddings = model.encode([chunk.page_content for chunk in batch], 
                                             device=device, 
                                             show_progress_bar=True)
-            embeddings.extend(batch_embeddings)
-        
-        embeddings_array = np.array(embeddings)
-        # logging.info(f"Created embeddings array of shape {embeddings_array.shape}")
-        return embeddings_array
+            yield from batch_embeddings
     except Exception as e:
         logging.error(f"Error in get_embeddings: {str(e)}")
         raise
 
 def create_vector_database(folder_path):
-    # logging.info("Creating vector database")
     try:
-        documents = load_documents(folder_path)
-        # logging.info(f"Loaded {len(documents)} documents")
+        documents = list(load_documents(folder_path))
         
         if not documents:
             logging.warning("No documents were loaded. Check the folder path and file types.")
             return None, None
         
-        chunks = chunk_texts(documents)
-        # logging.info(f"Created {len(chunks)} chunks")
+        chunks = list(chunk_texts(documents))
         
         if not chunks:
             logging.warning("No chunks were created. Check the chunking process.")
             return None, None
         
-        embeddings = get_embeddings(chunks)
-        logging.info(f"Created embeddings with shape {embeddings.shape}")
+        embeddings = list(get_embeddings(chunks))
+        embeddings_array = np.array(embeddings)
         
-        if embeddings.size == 0:
+        if embeddings_array.size == 0:
             logging.warning("No embeddings were created. Check the embedding process.")
             return None, None
         
-        dimension = embeddings.shape[1]
+        dimension = embeddings_array.shape[1]
         index = faiss.IndexFlatL2(dimension)
         
         if faiss.get_num_gpus() > 0:
@@ -102,7 +81,7 @@ def create_vector_database(folder_path):
         else:
             logging.info("Using CPU for FAISS")
         
-        index.add(embeddings.astype('float32'))
+        index.add(embeddings_array.astype('float32'))
         logging.info(f"Created FAISS index with {index.ntotal} vectors")
         
         return index, chunks
