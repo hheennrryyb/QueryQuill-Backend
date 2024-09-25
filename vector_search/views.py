@@ -23,6 +23,7 @@ from bs4 import BeautifulSoup
 import PyPDF2
 import uuid
 from django.contrib.auth.models import User
+from celery.result import AsyncResult
 
 class BaseView(APIView):
     def get(self, request):
@@ -93,46 +94,10 @@ class ProcessDocumentsView(APIView):
         except VectorDatabase.DoesNotExist:
             return JsonResponse({'error': 'Vector database not found'}, status=404)
         
-        documents = Document.objects.filter(user=request.user, processed=False, vector_database=vector_db)
-        if not documents:
-            return JsonResponse({'message': 'No unprocessed documents found for this project'}, status=200)
+        from .tasks import process_documents_task
+        task = process_documents_task.delay(project_id, request.user.id)
         
-        user_folder = f'user_{request.user.id}'
-        project_folder = f'project_{project_id}'
-        folder_path = os.path.join(settings.MEDIA_ROOT, 'documents', user_folder, project_folder)
-        os.makedirs(folder_path, exist_ok=True)
-        
-        for doc in documents:
-            file_name = os.path.basename(doc.file.name)
-            file_path = os.path.join(folder_path, file_name)
-            with open(file_path, 'wb') as f:
-                f.write(doc.file.read())
-            doc.processed = True
-            doc.save()
-        
-        try:
-            index, chunks = create_vector_database(folder_path)
-            
-            if index is None or chunks is None:
-                return JsonResponse({'error': 'Failed to create vector database. Check the logs for more information.'}, status=500)
-            
-            index_path = os.path.join(folder_path, 'faiss_index')
-            chunks_path = os.path.join(folder_path, 'chunks.pkl')
-            
-            faiss.write_index(index, index_path)
-            with open(chunks_path, 'wb') as f:
-                pickle.dump(chunks, f)
-            
-            relative_index_path = os.path.relpath(index_path, settings.MEDIA_ROOT)
-            relative_chunks_path = os.path.relpath(chunks_path, settings.MEDIA_ROOT)
-            
-            vector_db.index_file = relative_index_path
-            vector_db.chunks_file = relative_chunks_path
-            vector_db.save()
-            
-            return JsonResponse({'message': 'Documents processed and vector database updated successfully'}, status=200)
-        except Exception as e:
-            return JsonResponse({'error': f'An error occurred while processing documents: {str(e)}'}, status=500)
+        return JsonResponse({'message': 'Document processing started', 'task_id': str(task.id)}, status=202)
 
 class QueryDocumentsView(APIView):
     permission_classes = [IsAuthenticated]
@@ -522,3 +487,18 @@ class UserSignUpView(APIView):
             'email': user.email
         }, status=status.HTTP_201_CREATED)
 
+
+class TaskStatusView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        task_id = request.GET.get('task_id')
+        if not task_id:
+            return JsonResponse({'error': 'Task ID is required'}, status=400)
+        
+        task_result = AsyncResult(task_id)
+        return JsonResponse({
+            'task_id': task_id,
+            'status': task_result.status,
+            'result': task_result.result
+        })

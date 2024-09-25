@@ -1,0 +1,17 @@
+services:
+  - name: web
+    github:
+      repo: https://github.com/hheennrryyb/QueryQuill-Backend
+      branch: main
+    envs:
+      - key: DJANGO_SETTINGS_MODULE
+        value: vector_search_project.settings
+    run_command: gunicorn vector_search_project.wsgi:application --config gunicorn_config.py
+  - name: worker
+    github:
+      repo: https://github.com/hheennrryyb/QueryQuill-Backend
+      branch: main
+    envs:
+      - key: DJANGO_SETTINGS_MODULE
+        value: vector_search_project.settings
+    run_command: celery -A vector_search_project worker --loglevel=info

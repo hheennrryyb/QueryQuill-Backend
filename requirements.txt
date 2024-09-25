@@ -17,3 +17,7 @@ langchain-community
 unstructured
 gunicorn
 dj-database-url
+celery
+redis
+gevent==21.12.0
+

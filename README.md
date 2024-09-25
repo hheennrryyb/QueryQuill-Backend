@@ -71,6 +71,11 @@ This Django project implements a vector search system that allows users to uploa
     ```
     python manage.py runserver
     ```
+    Start Redis Server:
+      brew services start redis
+      
+    Start the Celery worker (in a separate terminal):
+      celery -A vector_search_project worker --loglevel=info --pool=solo
 
 11. Access the admin interface:
     Open a browser and go to `http://127.0.0.1:8000/admin/`

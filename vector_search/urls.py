@@ -13,6 +13,7 @@ urlpatterns = [
     path('scrape_url/', views.ScrapeUrlView.as_view(), name='scrape_url'),
     path('document_preview/', views.DocumentPreviewView.as_view(), name='document_preview'),
     path('delete_document/', views.DeleteDocumentView.as_view(), name='delete_document'),
+    path('task_status/', views.TaskStatusView.as_view(), name='task_status'),
 
     # Project Management
     path('projects/', views.ProjectExplorerView.as_view(), name='project_explorer'),
