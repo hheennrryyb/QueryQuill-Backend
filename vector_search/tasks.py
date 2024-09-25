@@ -26,6 +26,8 @@ def process_documents_task(project_id, user_id):
             file_path = os.path.join(folder_path, file_name)
             with open(file_path, 'wb') as f:
                 f.write(doc.file.read())
+            doc.processed = True
+            doc.save()
         
         index, chunks = create_vector_database(folder_path)
         
@@ -45,11 +47,7 @@ def process_documents_task(project_id, user_id):
         vector_db.index_file = relative_index_path
         vector_db.chunks_file = relative_chunks_path
         vector_db.save()
-
-        for doc in documents:
-            doc.processed = True
-            doc.save()
-
-        return {'message': 'Documents processed and vector database updated successfully'}
+        
+        return {"success": True, "message": "Documents processed successfully"}
     except Exception as e:
-        return {'error': f'An error occurred while processing documents: {str(e)}'}
+        return {"error": f"Failed to process documents: {str(e)}"}

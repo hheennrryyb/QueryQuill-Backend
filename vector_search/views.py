@@ -497,8 +497,17 @@ class TaskStatusView(APIView):
             return JsonResponse({'error': 'Task ID is required'}, status=400)
         
         task_result = AsyncResult(task_id)
+        
+        # Check if the task result contains an error
+        if task_result.successful() and isinstance(task_result.result, dict) and 'error' in task_result.result:
+            status = 'FAILURE'
+            result = task_result.result['error']
+        else:
+            status = task_result.status
+            result = task_result.result
+
         return JsonResponse({
             'task_id': task_id,
-            'status': task_result.status,
-            'result': task_result.result
+            'status': status,
+            'result': result
         })
