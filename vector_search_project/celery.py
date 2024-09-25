@@ -10,6 +10,8 @@ os.environ.setdefault('DJANGO_SETTINGS_MODULE', 'vector_search_project.settings'
 app = Celery('vector_search_project')
 app.config_from_object('django.conf:settings', namespace='CELERY')
 app.autodiscover_tasks()
+app.conf.worker_pool = 'gevent'
+app.conf.worker_concurrency = 4  # Adjust based on your system's capabilities
 
 # Set up logging
 logger = logging.getLogger('celery')
