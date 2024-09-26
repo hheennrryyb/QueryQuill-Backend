@@ -501,13 +501,16 @@ class TaskStatusView(APIView):
         # Check if the task result contains an error
         if task_result.failed():
             status = 'FAILURE'
-            result = str(task_result.result)  # Convert the error to a string
+            if isinstance(task_result.result, Exception):
+                result = str(task_result.result)  # Convert the error to a string
+            else:
+                result = "An unknown error occurred"
         elif task_result.successful() and isinstance(task_result.result, dict) and 'error' in task_result.result:
             status = 'FAILURE'
             result = task_result.result['error']
         else:
             status = task_result.status
-            result = task_result.result
+            result = str(task_result.result) if task_result.result is not None else None
 
         return JsonResponse({
             'task_id': task_id,
