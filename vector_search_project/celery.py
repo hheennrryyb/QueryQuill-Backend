@@ -13,10 +13,17 @@ app.autodiscover_tasks()
 app.conf.worker_pool = 'gevent'
 app.conf.worker_concurrency = 4  # Adjust based on your system's capabilities
 
+# Add this line to address the deprecation warning
+app.conf.broker_connection_retry_on_startup = True
+
+# Create a logs directory in your project
+log_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', 'logs')
+os.makedirs(log_dir, exist_ok=True)
+
 # Set up logging
 logger = logging.getLogger('celery')
-handler = logging.FileHandler('/var/log/celery/celery.log')
+logger.setLevel(logging.INFO)
+handler = logging.FileHandler(os.path.join(log_dir, 'celery.log'))
 formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
 handler.setFormatter(formatter)
 logger.addHandler(handler)
-logger.setLevel(logging.INFO)

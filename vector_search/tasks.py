@@ -21,17 +21,27 @@ def process_documents_task(project_id, user_id):
         folder_path = os.path.join(settings.MEDIA_ROOT, 'documents', user_folder, project_folder)
         os.makedirs(folder_path, exist_ok=True)
         
+        processed_docs = []
         for doc in documents:
-            file_name = os.path.basename(doc.file.name)
-            file_path = os.path.join(folder_path, file_name)
-            with open(file_path, 'wb') as f:
-                f.write(doc.file.read())
-            doc.processed = True
-            doc.save()
+            try:
+                file_name = os.path.basename(doc.file.name)
+                file_path = os.path.join(folder_path, file_name)
+                with open(file_path, 'wb') as f:
+                    f.write(doc.file.read())
+                doc.processed = True
+                doc.save()
+                processed_docs.append(doc)
+            except Exception as e:
+                doc.processed = False
+                doc.save()
+                raise Exception(f"Error processing document {doc.id}: {str(e)}")
         
         index, chunks = create_vector_database(folder_path)
         
         if index is None or chunks is None:
+            for doc in processed_docs:
+                doc.processed = False
+                doc.save()
             return {'error': 'Failed to create vector database. Check the logs for more information.'}
         
         index_path = os.path.join(folder_path, 'faiss_index')
@@ -50,4 +60,7 @@ def process_documents_task(project_id, user_id):
         
         return {"success": True, "message": "Documents processed successfully"}
     except Exception as e:
+        for doc in Document.objects.filter(user_id=user_id, vector_database=vector_db):
+            doc.processed = False
+            doc.save()
         return {"error": f"Failed to process documents: {str(e)}"}
