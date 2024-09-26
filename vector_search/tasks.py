@@ -6,6 +6,8 @@ import pickle
 from django.conf import settings
 from .models import Document, VectorDatabase
 from vector_search_project.celery import app
+import logging
+logger = logging.getLogger(__name__)
 
 @app.task
 def process_documents_task(project_id, user_id):
@@ -64,3 +66,8 @@ def process_documents_task(project_id, user_id):
             doc.processed = False
             doc.save()
         return {"error": f"Failed to process documents: {str(e)}"}
+
+@app.task
+def test_task(x, y):
+    logger.info(f"Executing test_task with arguments: {x}, {y}")
+    return x + y
