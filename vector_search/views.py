@@ -499,7 +499,10 @@ class TaskStatusView(APIView):
         task_result = AsyncResult(task_id)
         
         # Check if the task result contains an error
-        if task_result.successful() and isinstance(task_result.result, dict) and 'error' in task_result.result:
+        if task_result.failed():
+            status = 'FAILURE'
+            result = str(task_result.result)  # Convert the error to a string
+        elif task_result.successful() and isinstance(task_result.result, dict) and 'error' in task_result.result:
             status = 'FAILURE'
             result = task_result.result['error']
         else:
