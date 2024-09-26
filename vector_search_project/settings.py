@@ -148,23 +148,44 @@ USE_TZ = True
 LOGGING = {
     'version': 1,
     'disable_existing_loggers': False,
+    'formatters': {
+        'verbose': {
+            'format': '{levelname} {asctime} {module} {process:d} {thread:d} {message}',
+            'style': '{',
+        },
+        'simple': {
+            'format': '{levelname} {message}',
+            'style': '{',
+        },
+    },
     'handlers': {
         'console': {
+            'level': 'DEBUG',
             'class': 'logging.StreamHandler',
+            'formatter': 'verbose',
         },
         'file': {
+            'level': 'DEBUG',
             'class': 'logging.FileHandler',
-            'filename': '/var/log/celery/task.log',
+            'filename': '/var/log/celery/celery.log',
+            'formatter': 'verbose',
+        },
+    },
+    'loggers': {
+        'celery': {
+            'handlers': ['console', 'file'],
+            'level': 'DEBUG',
+        },
+        'vector_search': {
+            'handlers': ['console', 'file'],
+            'level': 'DEBUG',
         },
     },
     'root': {
         'handlers': ['console', 'file'],
         'level': 'INFO',
     },
-    'loggers': {
-        'celery': {
-            'handlers': ['console', 'file'],
-            'level': 'INFO',
-        },
-    },
 }
+
+# Ensure the log directory exists
+os.makedirs(os.path.dirname(LOGGING['handlers']['file']['filename']), exist_ok=True)

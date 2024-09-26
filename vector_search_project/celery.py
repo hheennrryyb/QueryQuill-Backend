@@ -2,6 +2,8 @@ import os
 from celery import Celery
 import multiprocessing
 import logging
+from celery.signals import after_setup_logger, after_setup_task_logger
+
 # Set the start method to 'forkserver'
 multiprocessing.set_start_method('forkserver', force=True)
 
@@ -10,8 +12,12 @@ os.environ.setdefault('DJANGO_SETTINGS_MODULE', 'vector_search_project.settings'
 app = Celery('vector_search_project')
 app.config_from_object('django.conf:settings', namespace='CELERY')
 app.autodiscover_tasks()
-app.conf.worker_pool = 'gevent'
-app.conf.worker_concurrency = 4  # Adjust based on your system's capabilities
+
+@after_setup_logger.connect
+@after_setup_task_logger.connect
+def setup_loggers(logger, *args, **kwargs):
+    logger.addHandler(logging.StreamHandler())
+    logger.setLevel(logging.DEBUG)
 
 # Add this line to address the deprecation warning
 app.conf.broker_connection_retry_on_startup = True

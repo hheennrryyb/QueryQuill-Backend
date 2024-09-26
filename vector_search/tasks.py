@@ -11,6 +11,7 @@ logger = logging.getLogger(__name__)
 
 @app.task
 def process_documents_task(project_id, user_id):
+    logger.info(f"Starting process_documents_task for project_id={project_id}, user_id={user_id}")
     try:
         vector_db = VectorDatabase.objects.get(project_id=project_id, user_id=user_id)
         documents = Document.objects.filter(user_id=user_id, processed=False, vector_database=vector_db)
@@ -60,8 +61,10 @@ def process_documents_task(project_id, user_id):
         vector_db.chunks_file = relative_chunks_path
         vector_db.save()
         
+        logger.info("process_documents_task completed successfully")
         return {"success": True, "message": "Documents processed successfully"}
     except Exception as e:
+        logger.exception(f"Error in process_documents_task: {str(e)}")
         for doc in Document.objects.filter(user_id=user_id, vector_database=vector_db):
             doc.processed = False
             doc.save()
@@ -69,5 +72,7 @@ def process_documents_task(project_id, user_id):
 
 @app.task
 def test_task(x, y):
-    logger.info(f"Executing test_task with arguments: {x}, {y}")
-    return x + y
+    logger.info(f"Starting test_task with arguments: x={x}, y={y}")
+    result = x + y
+    logger.info(f"test_task completed. Result: {result}")
+    return result
