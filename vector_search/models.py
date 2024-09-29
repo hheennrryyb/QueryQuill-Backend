@@ -16,7 +16,7 @@ def user_directory_path(instance, filename):
 class Document(models.Model):
     document_id = models.CharField(max_length=8, primary_key=True, default=short_uuid, editable=False)
     user = models.ForeignKey(User, on_delete=models.CASCADE)
-    file = models.FileField(upload_to=user_directory_path)
+    file = models.FileField(upload_to=user_directory_path, max_length=255)  # Increase max_length 
     uploaded_at = models.DateTimeField(auto_now_add=True)
     processed = models.BooleanField(default=False)
     vector_database = models.ForeignKey('VectorDatabase', on_delete=models.CASCADE, null=True, blank=True)
