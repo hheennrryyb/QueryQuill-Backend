@@ -13,6 +13,7 @@ urlpatterns = [
     path('scrape_url/', views.ScrapeUrlView.as_view(), name='scrape_url'),
     path('document_preview/', views.DocumentPreviewView.as_view(), name='document_preview'),
     path('delete_document/', views.DeleteDocumentView.as_view(), name='delete_document'),
+    path('delete_project/', views.DeleteProjectView.as_view(), name='delete_project'),
     path('task_status/', views.TaskStatusView.as_view(), name='task_status'),
 
     # Project Management
@@ -28,4 +29,7 @@ urlpatterns = [
     # JWT token endpoints
     path('api/token/', TokenObtainPairView.as_view(), name='token_obtain_pair'),
     path('api/token/refresh/', TokenRefreshView.as_view(), name='token_refresh'),
+
+    #Demo mode
+    path('demo/', views.DemoModeView.as_view(), name='demo_mode'),
 ]

@@ -2,19 +2,17 @@ import os
 import torch
 import faiss
 import logging
-# from langchain.document_loaders import PyPDFLoader, UnstructuredHTMLLoader, TextLoader
-# from langchain.document_loaders import DirectoryLoader
 from langchain.text_splitter import RecursiveCharacterTextSplitter
 from sentence_transformers import SentenceTransformer
 from langchain_community.document_loaders import PyPDFLoader, UnstructuredHTMLLoader, TextLoader, DirectoryLoader
-
+import PyPDF2
 import numpy as np
 
-# Set up logging
-# logging.basicConfig(level=logging.DEBUG, format='%(asctime)s - %(levelname)s - %(message)s')
+
+logger = logging.getLogger('vector_search')
 
 def load_documents(folder_path):
-    # logging.info(f"Loading documents from {folder_path}")
+    logger.info(f"Loading documents from {folder_path}")
     loaders = {
         '.pdf': (PyPDFLoader, {}),
         '.html': (UnstructuredHTMLLoader, {}),
@@ -28,29 +26,29 @@ def load_documents(folder_path):
             loader = DirectoryLoader(folder_path, glob=glob_pattern, loader_cls=loader_class, loader_kwargs=loader_args)
             docs = loader.load()
             documents.extend(docs)
-            # logging.info(f"Loaded {len(docs)} {ext} documents")
+            logger.info(f"Loaded {len(docs)} {ext} documents")
         except Exception as e:
-            logging.error(f"Error loading {ext} documents: {str(e)}")
+            logger.error(f"Error loading {ext} documents: {str(e)}")
     
-    # logging.info(f"Total documents loaded: {len(documents)}")
+    logger.info(f"Total documents loaded: {len(documents)}")
     return documents
 
 def chunk_texts(documents, chunk_size=1000, chunk_overlap=200):
-    # logging.info(f"Chunking {len(documents)} documents")
+    # logger.info(f"Chunking {len(documents)} documents")
     text_splitter = RecursiveCharacterTextSplitter(
         chunk_size=chunk_size,
         chunk_overlap=chunk_overlap
     )
     chunks = text_splitter.split_documents(documents)
-    # logging.info(f"Created {len(chunks)} chunks")
+    # logger.info(f"Created {len(chunks)} chunks")
     return chunks
 
 def get_embeddings(chunks, model_name='all-MiniLM-L6-v2', batch_size=32):
-    # logging.info(f"Getting embeddings for {len(chunks)} chunks using model {model_name}")
+    logger.info(f"Getting embeddings for {len(chunks)} chunks using model {model_name}")
     try:
         model = SentenceTransformer(model_name)
         device = 'cuda' if torch.cuda.is_available() else 'cpu'
-        logging.info(f"Using device: {device}")
+        logger.info(f"Using device: {device}")
         model = model.to(device)
         
         embeddings = []
@@ -62,56 +60,47 @@ def get_embeddings(chunks, model_name='all-MiniLM-L6-v2', batch_size=32):
             embeddings.extend(batch_embeddings)
         
         embeddings_array = np.array(embeddings)
-        # logging.info(f"Created embeddings array of shape {embeddings_array.shape}")
+        logger.info(f"Created embeddings array of shape {embeddings_array.shape}")
         return embeddings_array
     except Exception as e:
-        logging.error(f"Error in get_embeddings: {str(e)}")
+        logger.error(f"Error in get_embeddings: {str(e)}")
         raise
 
 def create_vector_database(folder_path):
-    # logging.info("Creating vector database")
+    logger.info(f"Starting create_vector_database for folder: {folder_path}")
     try:
         documents = load_documents(folder_path)
-        # logging.info(f"Loaded {len(documents)} documents")
-        
+        logger.info(f"Loaded {len(documents)} documents")
+
         if not documents:
-            logging.warning("No documents were loaded. Check the folder path and file types.")
+            logger.warning("No documents loaded. Returning None.")
             return None, None
-        
-        chunks = chunk_texts(documents)
-        # logging.info(f"Created {len(chunks)} chunks")
-        
+
+        text_splitter = RecursiveCharacterTextSplitter(chunk_size=1000, chunk_overlap=200)
+        chunks = text_splitter.split_documents(documents)
+        logger.info(f"Created {len(chunks)} chunks")
+
         if not chunks:
-            logging.warning("No chunks were created. Check the chunking process.")
+            logger.warning("No chunks created. Returning None.")
             return None, None
-        
-        embeddings = get_embeddings(chunks)
-        logging.info(f"Created embeddings with shape {embeddings.shape}")
-        
-        if embeddings.size == 0:
-            logging.warning("No embeddings were created. Check the embedding process.")
-            return None, None
-        
-        dimension = embeddings.shape[1]
-        index = faiss.IndexFlatL2(dimension)
-        
-        if faiss.get_num_gpus() > 0:
-            logging.info("Using GPU for FAISS")
-            res = faiss.StandardGpuResources()
-            index = faiss.index_cpu_to_gpu(res, 0, index)
-        else:
-            logging.info("Using CPU for FAISS")
-        
-        index.add(embeddings.astype('float32'))
-        logging.info(f"Created FAISS index with {index.ntotal} vectors")
-        
+
+        model = SentenceTransformer('all-MiniLM-L6-v2')
+        logger.info("Loaded SentenceTransformer model")
+
+        embeddings = model.encode([chunk.page_content for chunk in chunks])
+        logger.info(f"Created {len(embeddings)} embeddings")
+
+        index = faiss.IndexFlatL2(embeddings.shape[1])
+        index.add(embeddings)
+        logger.info(f"Created FAISS index with {index.ntotal} vectors")
+
         return index, chunks
     except Exception as e:
-        logging.error(f"Error in create_vector_database: {str(e)}", exc_info=True)
+        logger.exception(f"Error in create_vector_database: {str(e)}")
         return None, None
 
 def query_vector_database(query, index, chunks, k=5, model_name='all-MiniLM-L6-v2'):
-    logging.info(f"Querying vector database with: '{query}'")
+    logger.info(f"Querying vector database with: '{query}'")
     try:
         model = SentenceTransformer(model_name)
         device = 'cuda' if torch.cuda.is_available() else 'cpu'
@@ -128,18 +117,21 @@ def query_vector_database(query, index, chunks, k=5, model_name='all-MiniLM-L6-v
             })
         
         sorted_results = sorted(results, key=lambda x: x['distance'])
-        # logging.info(f"Found {len(sorted_results)} results")
+        # logger.info(f"Found {len(sorted_results)} results")
         return sorted_results
     except Exception as e:
-        logging.error(f"Error in query_vector_database: {str(e)}")
+        logger.error(f"Error in query_vector_database: {str(e)}")
         raise
 
-# # Example usage and debugging
+# Example usage and debugging
+# python -m vector_search.vector_db_utils
 # if __name__ == "__main__":
 #     try:
-#         folder_path = "path/to/your/documents"
+#         folder_path = "/Users/henry/Desktop/Chat Bot/VectorDB/vector_search_project/media/documents/user_18/project_032ab0aa"
+#         documents = load_documents(folder_path)
+#         print(documents)
 #         index, chunks = create_vector_database(folder_path)
-#         print(f"Created index with {index.ntotal} vectors and {len(chunks)} chunks")
+#         logger.info(f"Created index with {index.ntotal} vectors and {len(chunks)} chunks")
         
 #         query = "Your test query here"
 #         results = query_vector_database(query, index, chunks)
@@ -149,4 +141,4 @@ def query_vector_database(query, index, chunks, k=5, model_name='all-MiniLM-L6-v
 #             print(f"  Distance: {result['distance']}")
 #             print(f"  Content: {result['chunk'].page_content[:100]}...")  # Print first 100 chars
 #     except Exception as e:
-#         logging.error(f"Error in main execution: {str(e)}")
+#         logger.error(f"Error in main execution: {str(e)}")

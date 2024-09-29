@@ -24,16 +24,70 @@ import PyPDF2
 import uuid
 from django.contrib.auth.models import User
 from celery.result import AsyncResult
+import random
+import string
+from django.core.files import File
+import logging
+import shutil
+from django.core.exceptions import PermissionDenied
+from django.db.models import Count, Q
+from django.core.cache import cache
+
+
+# Set up logger
+logger = logging.getLogger('vector_search')
 
 class BaseView(APIView):
     def get(self, request):
+        stats = self.get_application_stats()
+
         data = {
-            'message': 'Welcome to the Vector Search Backend!',
-            'version': '1.0.0',
-            'status': 'running'
+            'message': 'Welcome to the Query Quill Vector Search Backend!',
+            'website': 'https://query-quill-8pqht.ondigitalocean.app',
+            'version': '1.2.0',
+            'status': 'running',
+            'application_stats': stats,
+            'environment': getattr(settings, 'ENVIRONMENT', 'development'),
+            'debug_mode': settings.DEBUG,
+            'media_root': settings.MEDIA_ROOT,
         }
+
         return JsonResponse(data)
 
+    def get_application_stats(self):
+        # Use caching to avoid frequent database queries
+        cache_key = 'application_stats'
+        cached_stats = cache.get(cache_key)
+
+        if cached_stats is None:
+            logger.info("Cache miss for application stats, querying database")
+            try:
+                # Use aggregate to get counts in a single query
+                doc_counts = Document.objects.aggregate(
+                    total_documents=Count('document_id'),
+                    processed_documents=Count('document_id', filter=Q(processed=True))
+                )
+
+                stats = {
+                    'total_users': User.objects.count(),
+                    'total_documents': doc_counts['total_documents'],
+                    'processed_documents': doc_counts['processed_documents'],
+                    'total_vector_databases': VectorDatabase.objects.count(),
+                }
+
+                # Cache the stats for 1 hour
+                cache.set(cache_key, stats, 3600)
+                logger.info("Application stats cached successfully")
+            except Exception as e:
+                logger.error(f"Error querying database for stats: {str(e)}")
+                stats = {
+                    'error': 'Unable to retrieve application statistics'
+                }
+        else:
+            logger.info("Serving cached application stats")
+            stats = cached_stats
+
+        return stats
 
 class UploadDocumentView(APIView):
     permission_classes = [IsAuthenticated]
@@ -41,20 +95,21 @@ class UploadDocumentView(APIView):
     def post(self, request):
         project_id = request.data.get('project_id')
         if not project_id:
-            return JsonResponse({'error': 'Project ID is required'}, status=400)
+            return Response({'error': 'Project ID is required'}, status=status.HTTP_400_BAD_REQUEST)
         
         try:
             vector_db = VectorDatabase.objects.get(project_id=project_id, user=request.user)
         except VectorDatabase.DoesNotExist:
-            return JsonResponse({'error': 'Vector database not found'}, status=404)
+            return Response({'error': 'Vector database not found'}, status=status.HTTP_404_NOT_FOUND)
         
         files = request.FILES.getlist('documents')
         if files:
             for file in files:
                 Document.objects.create(user=request.user, file=file, vector_database=vector_db)
-            return JsonResponse({'message': 'Documents uploaded successfully'}, status=200)
+            return Response({'message': 'Documents uploaded successfully'}, status=status.HTTP_200_OK)
         else:
-            return JsonResponse({'error': 'No files were uploaded'}, status=400)
+            return Response({'error': 'No files were uploaded'}, status=status.HTTP_400_BAD_REQUEST)
+
 
 class CreateProjectView(APIView):
     permission_classes = [IsAuthenticated]
@@ -63,14 +118,18 @@ class CreateProjectView(APIView):
         user = request.user
         name = request.data.get('project_name')
         if not name:
-            return JsonResponse({'error': 'Project name is required'}, status=400)
+            return Response({'error': 'Project name is required'}, status=status.HTTP_400_BAD_REQUEST)
         if VectorDatabase.objects.filter(user=user, name=name).exists():
-            return JsonResponse({'error': 'Project with this name already exists'}, status=400)
+            return Response({'error': 'Project with this name already exists'}, status=status.HTTP_400_BAD_REQUEST)
         
         new_project = VectorDatabase.objects.create(
             user=user,
             name=name
         )
+        
+        # Create project folder
+        project_folder = os.path.join(settings.MEDIA_ROOT, 'documents', f'user_{user.id}', f'project_{new_project.project_id}')
+        os.makedirs(project_folder, exist_ok=True)
         
         project_data = {
             'id': new_project.project_id,
@@ -79,7 +138,7 @@ class CreateProjectView(APIView):
             'updated_at': new_project.updated_at.isoformat(),
         }
         
-        return JsonResponse({'project': project_data}, status=201)
+        return Response({'project': project_data}, status=status.HTTP_201_CREATED)
 
 class ProcessDocumentsView(APIView):
     permission_classes = [IsAuthenticated]
@@ -87,17 +146,17 @@ class ProcessDocumentsView(APIView):
     def post(self, request):
         project_id = request.data.get('project_id')
         if not project_id:
-            return JsonResponse({'error': 'Project ID is required'}, status=400)
+            return Response({'error': 'Project ID is required'}, status=status.HTTP_400_BAD_REQUEST)
         
         try:
             vector_db = VectorDatabase.objects.get(project_id=project_id, user=request.user)
         except VectorDatabase.DoesNotExist:
-            return JsonResponse({'error': 'Vector database not found'}, status=404)
+            return Response({'error': 'Vector database not found'}, status=status.HTTP_404_NOT_FOUND)
         
         from .tasks import process_documents_task
         task = process_documents_task.delay(project_id, request.user.id)
         
-        return JsonResponse({'message': 'Document processing started', 'task_id': str(task.id)}, status=202)
+        return Response({'message': 'Document processing started', 'task_id': str(task.id)}, status=status.HTTP_202_ACCEPTED)
 
 class QueryDocumentsView(APIView):
     permission_classes = [IsAuthenticated]
@@ -207,15 +266,16 @@ class ScrapeUrlView(APIView):
     def post(self, request):
         url = request.data.get('url')
         project_id = request.data.get('project_id')
-        if not url:
-            return HttpResponse("Please provide a URL", status=400)
+        if not url or not project_id:
+            return Response({"error": "Both URL and project ID are required"}, status=status.HTTP_400_BAD_REQUEST)
+        
         # Validate URL
         try:
             result = urlparse(url)
             if not all([result.scheme, result.netloc]):
-                return HttpResponse("Invalid URL", status=400)
+                return Response({"error": "Invalid URL"}, status=status.HTTP_400_BAD_REQUEST)
         except ValueError:
-            return HttpResponse("Invalid URL", status=400)
+            return Response({"error": "Invalid URL"}, status=status.HTTP_400_BAD_REQUEST)
         
         try:
             response = requests.get(url, timeout=10)
@@ -223,14 +283,14 @@ class ScrapeUrlView(APIView):
             
             content_type = response.headers.get('Content-Type', '')
             if 'text/html' not in content_type.lower():
-                return HttpResponse("The URL does not point to an HTML page", status=400)
+                return Response({"error": "The URL does not point to an HTML page"}, status=status.HTTP_400_BAD_REQUEST)
         
             html_content = response.text
 
             try:
                 vector_db = VectorDatabase.objects.get(project_id=project_id, user=request.user)
             except VectorDatabase.DoesNotExist:
-                return JsonResponse({'error': 'Vector database not found'}, status=404)
+                return Response({'error': 'Vector database not found'}, status=status.HTTP_404_NOT_FOUND)
             
             if html_content:
                 # Create a safe filename from the URL
@@ -239,21 +299,16 @@ class ScrapeUrlView(APIView):
                 if not safe_filename.endswith('.html'):
                     safe_filename += '.html'
 
-                # Create a ContentFile from the HTML content
-                content_file = ContentFile(html_content.encode('utf-8'), name=safe_filename)
-
                 # Create the Document object
-                Document.objects.create(
-                    user=request.user,
-                    file=content_file,
-                    vector_database=vector_db
-                )
-                return JsonResponse({'message': 'Document uploaded successfully'}, status=200)
+                document = Document(user=request.user, vector_database=vector_db)
+                document.file.save(safe_filename, ContentFile(html_content.encode('utf-8')), save=True)
+
+                return Response({'message': 'Document uploaded successfully'}, status=status.HTTP_200_OK)
             else:
-                return JsonResponse({'error': 'No content was uploaded'}, status=400)
+                return Response({'error': 'No content was uploaded'}, status=status.HTTP_400_BAD_REQUEST)
         
         except requests.RequestException as e:
-            return HttpResponse(f"Error fetching URL: {str(e)}", status=500)
+            return Response({"error": f"Error fetching URL: {str(e)}"}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
 class DocumentPreviewView(APIView):
     permission_classes = [IsAuthenticated]
@@ -379,15 +434,9 @@ class SaveTextDocumentView(APIView):
         # Create a unique file name to avoid conflicts
         unique_file_name = f"{uuid.uuid4().hex}_{file_name}"
 
-        # Create a ContentFile from the text content
-        content_file = ContentFile(text_content.encode('utf-8'), name=unique_file_name)
-
         # Create the Document object
-        document = Document.objects.create(
-            user=request.user,
-            file=content_file,
-            vector_database=vector_db
-        )
+        document = Document(user=request.user, vector_database=vector_db)
+        document.file.save(unique_file_name, ContentFile(text_content.encode('utf-8')), save=True)
 
         return Response({
             'message': 'Text document saved successfully',
@@ -473,12 +522,12 @@ class UserSignUpView(APIView):
                 'error': 'Username already exists'
             }, status=status.HTTP_400_BAD_REQUEST)
 
-        # if User.objects.filter(email=email).exists():
-        #     return Response({
-        #         'error': 'Email already exists'
-        #     }, status=status.HTTP_400_BAD_REQUEST)
-
+        # Create the user
         user = User.objects.create_user(username=username, email=email, password=password)
+
+        # Create user's document folder
+        user_folder = os.path.join(settings.MEDIA_ROOT, 'documents', f'user_{user.id}')
+        os.makedirs(user_folder, exist_ok=True)
 
         return Response({
             'message': 'User created successfully',
@@ -517,3 +566,128 @@ class TaskStatusView(APIView):
             'status': status,
             'result': result
         })
+
+class DemoModeView(APIView):
+    def post(self, request):
+        logger.info("Demo mode activation started")
+
+        # Generate random username and password
+        username = 'demo_' + ''.join(random.choices(string.ascii_lowercase + string.digits, k=8))
+        password = ''.join(random.choices(string.ascii_letters + string.digits, k=12))
+        logger.debug(f"Generated demo credentials - Username: {username}")
+
+        try:
+            # Create a new user
+            user = User.objects.create_user(username=username, password=password)
+            logger.info(f"Created demo user with ID: {user.id}")
+
+            # Log in the user
+            login(request, user)
+            logger.info(f"Logged in demo user: {username}")
+
+            # Create projects and copy documents
+            demo_folder = os.path.join(settings.BASE_DIR, '.demo')
+            projects = []
+
+            if not os.path.exists(demo_folder):
+                logger.error(f"Demo folder not found: {demo_folder}")
+                return Response({
+                    'error': 'Demo mode is not properly configured. Please contact the administrator.'
+                }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+            for project_folder in os.listdir(demo_folder):
+                project_path = os.path.join(demo_folder, project_folder)
+                if os.path.isdir(project_path):
+                    logger.debug(f"Processing demo project folder: {project_folder}")
+                    
+                    # Create a new project for each folder
+                    new_project = VectorDatabase.objects.create(user=user, name=project_folder)
+                    logger.info(f"Created demo project: {project_folder} with ID: {new_project.project_id}")
+                    
+                    projects.append({
+                        'name': project_folder,
+                        'id': new_project.project_id
+                    })
+
+                    # Create a new directory for this project's files
+                    project_media_path = os.path.join(settings.MEDIA_ROOT, 'documents', f'user_{user.id}', f'project_{new_project.project_id}')
+                    os.makedirs(project_media_path, exist_ok=True)
+
+                    faiss_index_path = None
+                    chunks_path = None
+
+                    # Copy all files from the demo project to the new project directory
+                    for item in os.listdir(project_path):
+                        s = os.path.join(project_path, item)
+                        d = os.path.join(project_media_path, item)
+                        if os.path.isfile(s):
+                            shutil.copy2(s, d)
+                            logger.debug(f"Copied file: {item} to {d}")
+                            
+                            if item == 'faiss_index':
+                                faiss_index_path = os.path.relpath(d, settings.MEDIA_ROOT)
+                            elif item == 'chunks.pkl':
+                                chunks_path = os.path.relpath(d, settings.MEDIA_ROOT)
+                            elif item not in ['chunks.pkl', 'faiss_index']:
+                                relative_path = os.path.relpath(d, settings.MEDIA_ROOT)
+                                document = Document.objects.create(
+                                    user=user,
+                                    file=relative_path,
+                                    vector_database=new_project,
+                                    processed=True
+                                )
+                                logger.info(f"Created document record: {item} with ID: {document.document_id}")
+                        elif os.path.isdir(s):
+                            shutil.copytree(s, d)
+                            logger.debug(f"Copied directory: {item} to {d}")
+
+                    # Update the VectorDatabase with the correct paths
+                    if faiss_index_path and chunks_path:
+                        new_project.index_file = faiss_index_path
+                        new_project.chunks_file = chunks_path
+                        new_project.save()
+                        logger.info(f"Updated project {new_project.project_id} with index paths")
+
+            response_data = {
+                'message': 'Demo mode activated',
+                'username': username,
+                'password': password,
+                'projects': projects
+            }
+            logger.info("Demo mode activation completed successfully")
+            return Response(response_data, status=status.HTTP_201_CREATED)
+
+        except Exception as e:
+            logger.error(f"Error during demo mode activation: {str(e)}", exc_info=True)
+            return Response({
+                'error': 'Demo mode activation failed. Please try again or contact support.'
+            }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+class DeleteProjectView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request):
+        project_id = request.data.get('project_id')
+
+        if not project_id:
+            return Response({"error": "Project ID is required"}, status=status.HTTP_400_BAD_REQUEST)
+
+        try:
+            project = VectorDatabase.objects.get(project_id=project_id, user=request.user)
+        except VectorDatabase.DoesNotExist:
+            return Response({"error": "Project not found"}, status=status.HTTP_404_NOT_FOUND)
+
+        # Delete associated documents
+        documents = Document.objects.filter(vector_database=project)
+        for document in documents:
+            document.delete()  # This will trigger the delete_file method
+
+        # Delete the project directory
+        project_media_path = os.path.join(settings.MEDIA_ROOT, 'documents', f'user_{request.user.id}', f'project_{project.project_id}')
+        if os.path.exists(project_media_path):
+            shutil.rmtree(project_media_path)
+
+        # Delete the VectorDatabase object
+        project.delete()
+
+        return Response({"message": "Project deleted successfully"}, status=status.HTTP_200_OK)

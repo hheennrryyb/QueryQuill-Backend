@@ -7,7 +7,7 @@ from django.conf import settings
 from .models import Document, VectorDatabase
 from vector_search_project.celery import app
 import logging
-logger = logging.getLogger(__name__)
+logger = logging.getLogger('vector_search')
 
 @app.task
 def process_documents_task(project_id, user_id):
@@ -25,12 +25,10 @@ def process_documents_task(project_id, user_id):
         os.makedirs(folder_path, exist_ok=True)
         
         processed_docs = []
+
+        logger.info("folder_path: ", folder_path)
         for doc in documents:
             try:
-                file_name = os.path.basename(doc.file.name)
-                file_path = os.path.join(folder_path, file_name)
-                with open(file_path, 'wb') as f:
-                    f.write(doc.file.read())
                 doc.processed = True
                 doc.save()
                 processed_docs.append(doc)
@@ -40,7 +38,8 @@ def process_documents_task(project_id, user_id):
                 raise Exception(f"Error processing document {doc.id}: {str(e)}")
         
         index, chunks = create_vector_database(folder_path)
-        
+
+
         if index is None or chunks is None:
             for doc in processed_docs:
                 doc.processed = False
