@@ -586,7 +586,7 @@ class DemoModeView(APIView):
             logger.info(f"Logged in demo user: {username}")
 
             # Create projects and copy documents
-            demo_folder = os.path.join(settings.BASE_DIR, '.demo')
+            demo_folder = os.path.join(settings.BASE_DIR, 'demo')
             projects = []
 
             if not os.path.exists(demo_folder):
