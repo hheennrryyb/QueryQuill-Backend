@@ -190,19 +190,31 @@ class QueryDocumentsView(APIView):
                 chunks = pickle.load(f)
 
             results = query_vector_database(query, index, chunks)
+            
             # Format results to match the expected output
-            formatted_results = [
-                {
-                    'content': r['chunk'].page_content,
-                    'distance': float(r['distance'])  # Convert numpy.float32 to Python float
-                }
-                for r in results
-            ]
+            formatted_results = []
+            for r in results:
+                try:
+                    formatted_results.append({
+                        'content': r['chunk'].page_content,
+                        'distance': float(r['distance'])  # Convert numpy.float32 to Python float
+                    })
+                except AttributeError as e:
+                    logger.error(f"Error formatting result: {str(e)}")
+                    logger.error(f"Problematic chunk: {r['chunk']}")
+                    continue  # Skip this result and continue with the next one
             
             return JsonResponse({'results': formatted_results})
         except Exception as e:
+            logger.error(f"An error occurred while querying the vector database: {str(e)}", exc_info=True)
             return JsonResponse({
-                'error': f'An error occurred while querying the vector database: {str(e)}'
+                'error': f'An error occurred while querying the vector database: {str(e)}',
+                'details': {
+                    'index_path': index_path if 'index_path' in locals() else 'Not set',
+                    'chunks_path': chunks_path if 'chunks_path' in locals() else 'Not set',
+                    'chunks_type': type(chunks).__name__ if 'chunks' in locals() else 'Not loaded',
+                    'results_type': type(results).__name__ if 'results' in locals() else 'Not generated'
+                }
             }, status=500)
 
 class ProjectExplorerView(APIView):
