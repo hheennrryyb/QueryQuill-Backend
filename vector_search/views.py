@@ -581,9 +581,13 @@ class DemoModeView(APIView):
             user = User.objects.create_user(username=username, password=password)
             logger.info(f"Created demo user with ID: {user.id}")
 
-            # Log in the user
-            login(request, user)
-            logger.info(f"Logged in demo user: {username}")
+            # Authenticate the user
+            authenticated_user = authenticate(username=username, password=password)
+            if authenticated_user is None:
+                raise Exception("Failed to authenticate newly created user")
+
+            # Generate tokens
+            refresh = RefreshToken.for_user(authenticated_user)
 
             # Create projects and copy documents
             demo_folder = os.path.join(settings.BASE_DIR, 'demo')
@@ -652,7 +656,9 @@ class DemoModeView(APIView):
                 'message': 'Demo mode activated',
                 'username': username,
                 'password': password,
-                'projects': projects
+                'projects': projects,
+                'refresh': str(refresh),
+                'access': str(refresh.access_token)
             }
             logger.info("Demo mode activation completed successfully")
             return Response(response_data, status=status.HTTP_201_CREATED)

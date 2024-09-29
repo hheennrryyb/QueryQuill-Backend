@@ -14,5 +14,7 @@ venv/
 
 .env
 env/
+
 logs/
+
 staticfiles/
