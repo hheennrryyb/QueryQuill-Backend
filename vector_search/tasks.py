@@ -14,7 +14,7 @@ def process_documents_task(project_id, user_id):
     logger.info(f"Starting process_documents_task for project_id={project_id}, user_id={user_id}")
     try:
         vector_db = VectorDatabase.objects.get(project_id=project_id, user_id=user_id)
-        documents = Document.objects.filter(user_id=user_id, processed=False, vector_database=vector_db)
+        documents = Document.objects.filter(user_id=user_id, vector_database=vector_db)
         
         if not documents:
             return {'message': 'No unprocessed documents found for this project'}
