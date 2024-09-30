@@ -56,6 +56,14 @@ LOGGING = {
             'class': 'logging.StreamHandler',
             'formatter': 'simple',
         },
+        'file': {
+            'level': 'INFO',
+            'class': 'logging.handlers.RotatingFileHandler',
+            'filename': LOGS_DIR / 'syslog',
+            'formatter': 'verbose',
+            'maxBytes': 1024 * 1024 * 100,  # 100 MB
+            'backupCount': 5,
+        },
         'celery': {
             'level': 'INFO',
             'class': 'logging.handlers.RotatingFileHandler',
@@ -67,16 +75,22 @@ LOGGING = {
     },
     'loggers': {
         'django': {
-            'handlers': ['console'],
+            'handlers': ['console', 'file'],
+            'level': 'INFO',
             'propagate': True,
         },
+        'vector_search': {
+            'handlers': ['console', 'file'],
+            'level': 'INFO',
+            'propagate': False,
+        },
         'celery': {
-            'handlers': ['celery', 'console'],
+            'handlers': ['celery', 'console', 'file'],
             'level': 'INFO',
             'propagate': False,
         },
         'celery.task': {
-            'handlers': ['celery', 'console'],
+            'handlers': ['celery', 'console', 'file'],
             'level': 'INFO',
             'propagate': False,
         },
