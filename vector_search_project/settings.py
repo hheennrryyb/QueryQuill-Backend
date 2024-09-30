@@ -67,7 +67,7 @@ LOGGING = {
         'file': {
             'level': 'INFO',
             'class': 'logging.handlers.RotatingFileHandler',
-            'filename': os.path.join(LOGS_DIR, 'vector_search.log'),
+            'filename': LOGS_DIR / 'vector_search.log',
             'formatter': 'verbose',
             'maxBytes': 1024 * 1024 * 100,  # 100 MB
             'backupCount': 5,

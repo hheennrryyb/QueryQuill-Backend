@@ -197,6 +197,15 @@ class QueryDocumentsView(APIView):
                 with open(chunks_path, 'rb') as f:
                     chunks = pickle.load(f)
                 logger.info(f"Chunks loaded successfully. Type: {type(chunks)}, Length: {len(chunks)}")
+            except KeyError as e:
+                if str(e) == "'__fields_set__'":
+                    logger.error("Pydantic version mismatch detected when loading chunks")
+                    return JsonResponse({
+                        'error': 'Incompatible data format. Please reprocess your documents.',
+                        'details': 'Pydantic version mismatch detected'
+                    }, status=500)
+                else:
+                    raise
             except Exception as e:
                 logger.error(f"Error loading chunks: {str(e)}", exc_info=True)
                 return JsonResponse({
