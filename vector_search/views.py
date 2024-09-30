@@ -180,29 +180,43 @@ class QueryDocumentsView(APIView):
         try:
             index_path = os.path.join(settings.MEDIA_ROOT, vector_db.index_file.name)
             chunks_path = os.path.join(settings.MEDIA_ROOT, vector_db.chunks_file.name)
+            
+            logger.info(f"Index path: {index_path}")
+            logger.info(f"Chunks path: {chunks_path}")
+            
             if not os.path.exists(index_path) or not os.path.exists(chunks_path):
                 return JsonResponse({
                     'error': 'Vector database files not found. Please reprocess your documents.'
                 }, status=404)
             
             index = faiss.read_index(index_path)
-            with open(chunks_path, 'rb') as f:
-                chunks = pickle.load(f)
+            logger.info("FAISS index loaded successfully")
+            
+            try:
+                with open(chunks_path, 'rb') as f:
+                    chunks = pickle.load(f)
+                logger.info(f"Chunks loaded successfully. Type: {type(chunks)}, Length: {len(chunks)}")
+            except Exception as e:
+                logger.error(f"Error loading chunks: {str(e)}", exc_info=True)
+                return JsonResponse({
+                    'error': 'Error loading chunks file. Please reprocess your documents.',
+                    'details': str(e)
+                }, status=500)
 
             results = query_vector_database(query, index, chunks)
+            logger.info(f"Query results obtained. Number of results: {len(results)}")
             
-            # Format results to match the expected output
             formatted_results = []
             for r in results:
                 try:
                     formatted_results.append({
                         'content': r['chunk'].page_content,
-                        'distance': float(r['distance'])  # Convert numpy.float32 to Python float
+                        'distance': float(r['distance'])
                     })
                 except AttributeError as e:
                     logger.error(f"Error formatting result: {str(e)}")
                     logger.error(f"Problematic chunk: {r['chunk']}")
-                    continue  # Skip this result and continue with the next one
+                    continue
             
             return JsonResponse({'results': formatted_results})
         except Exception as e:
