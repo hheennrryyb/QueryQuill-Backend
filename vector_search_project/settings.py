@@ -56,14 +56,6 @@ LOGGING = {
             'class': 'logging.StreamHandler',
             'formatter': 'simple',
         },
-        'file': {
-            'level': 'INFO',
-            'class': 'logging.handlers.RotatingFileHandler',
-            'filename': LOGS_DIR / 'syslog',
-            'formatter': 'verbose',
-            'maxBytes': 1024 * 1024 * 100,  # 100 MB
-            'backupCount': 5,
-        },
         'celery': {
             'level': 'INFO',
             'class': 'logging.handlers.RotatingFileHandler',
@@ -72,25 +64,32 @@ LOGGING = {
             'maxBytes': 1024 * 1024 * 100,  # 100 MB
             'backupCount': 5,
         },
+        'vector_search': {
+            'level': 'INFO',
+            'class': 'logging.handlers.RotatingFileHandler',
+            'filename': LOGS_DIR / 'vector_search.log',
+            'formatter': 'verbose',
+            'maxBytes': 1024 * 1024 * 100,  # 100 MB
+            'backupCount': 5,
+        },
     },
     'loggers': {
         'django': {
-            'handlers': ['console', 'file'],
-            'level': 'INFO',
+            'handlers': ['console'],
             'propagate': True,
         },
-        'vector_search': {
-            'handlers': ['console', 'file'],
-            'level': 'INFO',
-            'propagate': False,
-        },
         'celery': {
-            'handlers': ['celery', 'console', 'file'],
+            'handlers': ['celery', 'console'],
             'level': 'INFO',
             'propagate': False,
         },
         'celery.task': {
-            'handlers': ['celery', 'console', 'file'],
+            'handlers': ['celery', 'console'],
+            'level': 'INFO',
+            'propagate': False,
+        },
+        'vector_search': {
+            'handlers': ['vector_search', 'console'],
             'level': 'INFO',
             'propagate': False,
         },
