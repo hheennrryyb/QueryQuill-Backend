@@ -162,6 +162,7 @@ class QueryDocumentsView(APIView):
     permission_classes = [IsAuthenticated]
 
     def post(self, request):
+        logger.info("QueryDocumentsView.post method called")
         query = request.data.get('query')
         project_id = request.data.get('project_id')
         if not query:

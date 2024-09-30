@@ -64,10 +64,10 @@ LOGGING = {
             'maxBytes': 1024 * 1024 * 100,  # 100 MB
             'backupCount': 5,
         },
-        'vector_search': {
+        'file': {
             'level': 'INFO',
             'class': 'logging.handlers.RotatingFileHandler',
-            'filename': LOGS_DIR / 'vector_search.log',
+            'filename': os.path.join(LOGS_DIR, 'vector_search.log'),
             'formatter': 'verbose',
             'maxBytes': 1024 * 1024 * 100,  # 100 MB
             'backupCount': 5,
@@ -89,7 +89,7 @@ LOGGING = {
             'propagate': False,
         },
         'vector_search': {
-            'handlers': ['vector_search', 'console'],
+            'handlers': ['file', 'console'],
             'level': 'INFO',
             'propagate': False,
         },
