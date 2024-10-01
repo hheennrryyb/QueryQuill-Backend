@@ -1,6 +1,23 @@
-# Vector Search Project
+# QueryQuill Vector Search Project
 
-This Django project implements a vector search system that allows users to upload documents, process them into a vector database, and perform semantic searches on the processed documents.
+QueryQuill is a powerful Django-based vector search system that allows users to upload documents, process them into a vector database, and perform semantic searches on the processed documents. This repository contains the backend code for the QueryQuill project.
+
+## Features
+
+- Document upload and processing
+- Vector database creation using FAISS
+- Semantic search functionality
+- Project management
+- User authentication and authorization
+- Demo mode for quick testing
+
+## Frontend Repository
+
+The frontend code for QueryQuill can be found at: [https://github.com/hheennrryyb/QueryQuill-Frontend](https://github.com/hheennrryyb/QueryQuill-Frontend)
+
+## Live Demo
+
+Try out QueryQuill live at: [https://query-quill-8pqht.ondigitalocean.app](https://query-quill-8pqht.ondigitalocean.app)
 
 ## Requirements
 
@@ -98,18 +115,6 @@ This Django project implements a vector search system that allows users to uploa
     - For VS Code, select the Python interpreter from the venv
     - For PyCharm, set the project interpreter to the venv Python
 
-15. (Optional) Set up version control:
-    ```
-    git init
-    echo "venv/" >> .gitignore
-    echo "*.pyc" >> .gitignore
-    echo "__pycache__/" >> .gitignore
-    echo ".env" >> .gitignore
-    git add .
-    git commit -m "Initial commit"
-    ```
-
-Your development environment is now set up and ready for the Vector Search project!
 
 ## Usage
 
