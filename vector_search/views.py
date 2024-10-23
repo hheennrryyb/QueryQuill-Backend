@@ -252,6 +252,10 @@ class ProjectExplorerView(APIView):
                 'name': project.name,
                 'created_at': project.created_at.isoformat(),
                 'updated_at': project.updated_at.isoformat(),
+                'description': project.description,
+                'approvedDomains': project.approvedDomains,
+                'introPrompt': project.introPrompt,
+                'num_documents': project.documents.count(),
             }
             for project in user_projects
         ]
@@ -733,3 +737,46 @@ class DeleteProjectView(APIView):
         project.delete()
 
         return Response({"message": "Project deleted successfully"}, status=status.HTTP_200_OK)
+
+
+class UpdateProjectView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request):
+        project_id = request.data.get('project_id')
+        name = request.data.get('name')
+        description = request.data.get('description')
+        approvedDomains = request.data.get('approvedDomains')
+        introPrompt = request.data.get('introPrompt')
+
+        if not project_id:
+            return Response({"error": "Project ID is required"}, status=status.HTTP_400_BAD_REQUEST)
+
+        try:
+            project = VectorDatabase.objects.get(project_id=project_id, user=request.user)
+        except VectorDatabase.DoesNotExist:
+            return Response({"error": "Project not found"}, status=status.HTTP_404_NOT_FOUND)
+
+        # Update fields if provided
+        if name is not None:
+            project.name = name
+        if description is not None:
+            project.description = description
+        if approvedDomains is not None:
+            project.approvedDomains = approvedDomains
+        if introPrompt is not None:
+            project.introPrompt = introPrompt
+
+        project.save()
+
+        # Prepare the updated project data
+        updated_project_data = {
+            'id': project.project_id,
+            'name': project.name,
+            'description': project.description,
+            'approvedDomains': project.approvedDomains,
+            'introPrompt': project.introPrompt,
+            'updated_at': project.updated_at.isoformat(),
+        }
+
+        return Response({"message": "Project updated successfully", "project": updated_project_data}, status=status.HTTP_200_OK)
